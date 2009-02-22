@@ -6,10 +6,6 @@ import re
 import time
 import subprocess
 
-spoken_line = re.compile(r'\d\d:\d\d <[ @+]?(?P<name>.*?)> (?P<said>.*)')
-bitlbee_line = re.compile(r'\d\d:\d\d -!- ServerMode/&bitlbee \[(?P<notification>.*?)\]')
-join_line = re.compile(r'\d\d:\d\d -!- (?P<name>.*?) \[.*?\] has joined (?P<channel>.*?)')
-quit_line = re.compile(r'\d\d:\d\d -!- (?P<name>.*?) \[.*?\] has quit \[.*?\]')
 link = re.compile(r'https?://[^ ]+')
 link2 = re.compile(r'www\.[^ ]+')
 
@@ -23,66 +19,117 @@ def p(s):
     sys.stderr.write('\n')
     p2.wait()
 
+
+class Reader(object):
+
+    channel = ''
+    channel_changed = False
+    time = '00:00'
+
+    def system_message(self, line):
+        line = line[4:] # strip '-!- '
+        if line.startswith('ServerMode'):
+            start = line.find('[') + 1
+            end = line.find(']')
+            mode, user = line[start:end].split(' ', 1)
+            by = line[end + 5:]
+            what = ''
+            if mode == '+o':
+                what = 'was opped'
+            elif mode == '-o':
+                what = 'was de-opped'
+            elif mode == '+v':
+                if self.channel.endswith('bitlbee'):
+                    what = 'is back'
+                else:
+                    what = 'was voiced'
+            elif mode == '-v':
+                if self.channel.endswith('bitlbee'):
+                    what = 'went away'
+                else:
+                    what = 'was de-voiced'
+            if self.channel.endswith('bitlbee'):
+                say = "%s %s" % (user, what)
+            else:
+                say = "%s %s by %s" % (user, what, by)
+            return say
+        elif 'has quit' in line:
+            user = line.split(' ', 1)[0]
+            return "%s has quit" % (user,)
+        elif 'has joined' in line:
+            user = line.split(' ', 1)[0]
+            return "%s has joined" % (user,)
+        elif 'has left' in line:
+            user = line.split(' ', 1)[0]
+            return "%s has left" % (user,)
+            
+
+    def spoken_line(self, line):
+        user, line = line.split('> ', 1)
+        user = user.strip('< @+%')
+        p("%s said: %s" % (user, line))
+
+    def action_line(self, line):
+        line = line.strip(' *')
+        p(line)
+
+    def __call__(self, line):
+        if not line.strip():
+            return
+        if line.startswith('==>'):
+            # get channel:
+            # tail's way of separating logs: "==> path/to/file.log <=="
+            filename = line.rsplit('/', 1)[1]
+            channel = filename.rsplit('.', 1)[0]
+            if channel != self.channel:
+                self.channel_changed = True
+            self.channel = channel
+            return
+        if line.startswith('---'):
+            # --- Log closed ---, etc.
+            return
+
+        # All irssi lines start with time:
+        self.time, line = line.split(' ', 1)
+        resp = None
+        if line.startswith('-!-'):
+            resp = self.system_message(line)
+        elif line.startswith('<'):
+            resp = self.spoken_line(line)
+        elif line.startswith(' *'):
+            resp = self.action_line(line)
+        else:
+            resp = "Line ignored."
+            print >> sys.stderr, line
+
+        if resp:
+            if self.channel_changed:
+                p(self.channel + '.')
+            p(resp)
+
+        self.channel_changed = False
+
+
 def main():
     data = StringIO()
-    prevchannel = ''
-    prevnick = ''
+    reader = Reader()
     try:
         while True:
             byte = sys.stdin.read(1)
-            data.write(byte)
             if byte == '\n':
-                line = data.getvalue().strip()
+                reader(data.getvalue())
                 data.seek(0)
                 data.truncate()
-                channel = ''
-                nick = ''
-                if line.startswith('---'):
-                    # "--- Log closed ---", etc.
-                    pass
-                elif line.startswith('==>'):
-                    # tail's way of separating logs: "==> path/to/file.log <=="
-                    part = line.rsplit('/', 1)[1]
-                    channel = part.split('.')[0]
-                    continue
-                elif bitlbee_line.match(line):
-                    m = bitlbee_line.match(line)
-                    operation, person = m.group('notification').split()
-                    s = "bitlbee: %s " % person
-                    if operation == '-v':
-                        s+='went away'
-                    elif operation == '+v':
-                        s+='came back'
-                    else:
-                        s+='did something I think you should look at'
-                    p(s)
-                elif spoken_line.match(line):
-                    m = spoken_line.match(line)
-                    nick = m.group('name')
-                    if nick != 'Flexo':
-                        s = ''
-                        if channel != prevchannel:
-                            s += channel + ': '
-                        if nick != prevnick:
-                            s += "%s said: " % m.group('name')
-                        s += m.group('said')
-                        p(s)
-                elif join_line.match(line):
-                    m = join_line.match(line)
-                    p("join: %(name)s has joined %(channel)s" % m.groupdict())
-                elif quit_line.match(line):
-                    m = quit_line.match(line)
-                    p(("quit: %(name)s has quit " % m.groupdict()) + channel)
-                elif line:
-                    p(line)
-                prevchannel = channel
-                prevnick = nick
-            if not byte:
-                break
+            else:
+                data.write(byte)
+                
+    except KeyboardInterrupt:
+        sys.exit()
     except Exception:
         print "Error!"
         import traceback
         traceback.print_exc()
+    
 
 if __name__ == '__main__':
     main()
