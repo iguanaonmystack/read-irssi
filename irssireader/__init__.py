@@ -10,6 +10,7 @@ link = re.compile(r'https?://[^ ]+')
 link2 = re.compile(r'www\.[^ ]+')
 
 def p(s):
+    s = s.replace('*', ' star ')
     s = s.replace('|', ' ')
     s = link.sub('a link:', s)
     s = link2.sub('a link:', s)
@@ -23,6 +24,7 @@ def p(s):
 class Reader(object):
 
     channel = ''
+    user = ''
     channel_changed = False
     time = '00:00'
 
@@ -52,26 +54,33 @@ class Reader(object):
                 say = "%s %s" % (user, what)
             else:
                 say = "%s %s by %s" % (user, what, by)
-            return say
+            return user, say
         elif 'has quit' in line:
             user = line.split(' ', 1)[0]
-            return "%s has quit" % (user,)
+            return user, "%s has quit" % (user,)
         elif 'has joined' in line:
             user = line.split(' ', 1)[0]
-            return "%s has joined" % (user,)
+            return user, "%s has joined" % (user,)
         elif 'has left' in line:
             user = line.split(' ', 1)[0]
-            return "%s has left" % (user,)
-            
+            return user, "%s has left" % (user,)
+        return None, "System line ignored."            
+
 
     def spoken_line(self, line):
         user, line = line.split('> ', 1)
         user = user.strip('< @+%')
-        p("%s said: %s" % (user, line))
+        if user != self.user:
+            return user, "%s said: %s" % (user, line)
+        else:
+            return user, line
+
 
     def action_line(self, line):
         line = line.strip(' *')
-        p(line)
+        user = line.split(' ', 1)[0]
+        return user, line
+
 
     def __call__(self, line):
         if not line.strip():
@@ -92,22 +101,26 @@ class Reader(object):
         # All irssi lines start with time:
         self.time, line = line.split(' ', 1)
         resp = None
+        user = None
         if line.startswith('-!-'):
-            resp = self.system_message(line)
+            user, resp = self.system_message(line)
         elif line.startswith('<'):
-            resp = self.spoken_line(line)
+            user, resp = self.spoken_line(line)
         elif line.startswith(' *'):
-            resp = self.action_line(line)
+            user, resp = self.action_line(line)
         else:
             resp = "Line ignored."
             print >> sys.stderr, line
+        
+        if user:
+            self.user = user
 
-        if resp:
+        if resp and user != 'Flexo':
             if self.channel_changed:
                 p(self.channel + '.')
             p(resp)
 
-        self.channel_changed = False
+            self.channel_changed = False
 
 
 def main():
