@@ -9,24 +9,35 @@ import subprocess
 link = re.compile(r'https?://[^ ]+')
 link2 = re.compile(r'www\.[^ ]+')
 
-def p(s):
-    s = s.replace('*', ' star ')
-    s = s.replace('|', ' ')
-    s = link.sub('a link:', s)
-    s = link2.sub('a link:', s)
-    p1 = subprocess.Popen(['echo', s], stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(['festival', '--tts'], stdin=p1.stdout, stdout=subprocess.PIPE)
-    sys.stderr.write(s)
-    sys.stderr.write('\n')
-    p2.wait()
+def print_to_command(cmd=None):
+    def p(s):
+        s = s.replace('*', ' star ')
+        s = s.replace('|', ' ')
+        s = link.sub('a link:', s)
+        s = link2.sub('a link:', s)
+        sys.stderr.write(s)
+        sys.stderr.write('\n')
+        if not cmd:
+            p1 = subprocess.Popen(['echo', s], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['festival', '--tts'], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p2.wait()
+        else:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, stdin=subprocess.PIPE)
+            proc.stdin.write(s)
+            proc.stdin.close()
+            proc.wait()
+    return p
 
 
 class Reader(object):
 
-    channel = ''
-    user = ''
-    channel_changed = False
-    time = '00:00'
+    def __init__(self, cmd=None):
+        self.channel = ''
+        self.user = ''
+        self.channel_changed = False
+        self.time = '00:00'
+        self.cmd = cmd
+        self.p = print_to_command(cmd)
 
     def system_message(self, line):
         line = line[4:] # strip '-!- '
@@ -117,15 +128,18 @@ class Reader(object):
 
         if resp and user != 'Flexo':
             if self.channel_changed:
-                p(self.channel + '.')
-            p(resp)
+                self.p(self.channel + '.')
+            self.p(resp)
 
             self.channel_changed = False
 
 
 def main():
+    cmd = None
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
     data = StringIO()
-    reader = Reader()
+    reader = Reader(cmd)
     try:
         while True:
             byte = sys.stdin.read(1)
