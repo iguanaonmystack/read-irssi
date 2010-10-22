@@ -5,6 +5,7 @@ from cStringIO import StringIO
 import re
 import time
 import subprocess
+import traceback
 
 link = re.compile(r'https?://[^ ]+')
 link2 = re.compile(r'www\.[^ ]+')
@@ -18,11 +19,16 @@ def print_to_command(cmd=None):
         sys.stderr.write(s)
         sys.stderr.write('\n')
         if not cmd:
-            p1 = subprocess.Popen(['echo', s], stdout=subprocess.PIPE)
-            p2 = subprocess.Popen(['festival', '--tts'], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p1 = subprocess.Popen(['echo', s],
+                stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['festival', '--tts'],
+                stdin=p1.stdout, stdout=subprocess.PIPE)
             p2.wait()
         else:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, stdin=subprocess.PIPE)
+            proc = subprocess.Popen(cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                shell=True)
             proc.stdin.write(s)
             proc.stdin.close()
             proc.wait()
@@ -154,7 +160,6 @@ def main():
         sys.exit()
     except Exception:
         print "Error!"
-        import traceback
         traceback.print_exc()
     
 
