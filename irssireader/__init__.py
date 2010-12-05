@@ -86,7 +86,7 @@ class Reader(object):
 
     def spoken_line(self, line):
         user, line = line.split('> ', 1)
-        user = user.strip('< @+%')
+        user = user.strip('< @+%&')
         if user != self.user:
             return user, "%s said: %s" % (user, line)
         else:

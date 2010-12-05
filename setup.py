@@ -14,7 +14,7 @@ setup(
     author='Nick Murdoch',
     author_email='nick@nivan.net',
     url='http://nickmurdoch.nivan.net',
-    license='',
+    license='MIT',
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
     include_package_data=True,
     zip_safe=False,
