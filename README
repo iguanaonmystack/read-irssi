@@ -1,0 +1,13 @@
+===========
+IrssiReader
+===========
+
+IrssiReader, or read-irssi as its command is called, is a utility I wrote to allow me to pipe irssi logs to a text-to-speech reader. Combined with `tail -f`, this can be used to stream new messages immediately into speech.
+
+It originally opened and wrote to the Linux TTS engine festival itself, but since has been modified to allow any command to have text piped into. For instance, the command below will have an OS X installation read the logs::
+
+    $ tail -fn0 irclogs/*/*.log | read-irssi "ssh mymacbook say"
+
+Future plans include allowing conversion rules to be extended by the end user, probably in a config file or as a Python module.
+
+Contributions welcome!
